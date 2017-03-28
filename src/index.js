@@ -8,6 +8,8 @@ import normalizeOptions, {
 import pluginList from "../data/plugins.json";
 import transformPolyfillRequirePlugin
   from "./transform-polyfill-require-plugin";
+import { _extends, semverify } from "./utils";
+import semver from "semver";
 
 /**
  * Determine if a transformation is required
@@ -37,14 +39,10 @@ export const isPluginRequired = (supportedEnvironments, plugin) => {
     const lowestImplementedVersion = plugin[environment];
     const lowestTargetedVersion = supportedEnvironments[environment];
 
-    if (typeof lowestTargetedVersion === "string") {
-      throw new Error(
-        `Target version must be a number,
-          '${lowestTargetedVersion}' was given for '${environment}'`,
-      );
-    }
-
-    return lowestTargetedVersion < lowestImplementedVersion;
+    return semver.gt(
+      semverify(lowestImplementedVersion),
+      semverify(lowestTargetedVersion),
+    );
   });
 
   return isRequiredForEnvironments.length > 0 ? true : false;
@@ -93,22 +91,7 @@ const mergeBrowsers = (fromQuery, fromTarget) => {
   );
 };
 
-export const getCurrentNodeVersion = () => {
-  return parseFloat(process.versions.node);
-};
-
-const _extends = Object.assign ||
-  function(target) {
-    for (let i = 1; i < arguments.length; i++) {
-      const source = arguments[i];
-      for (const key in source) {
-        if (Object.prototype.hasOwnProperty.call(source, key)) {
-          target[key] = source[key];
-        }
-      }
-    }
-    return target;
-  };
+export const getCurrentNodeVersion = () => process.versions.node;
 
 export const getTargets = (targets = {}) => {
   const targetOpts = _extends({}, targets);

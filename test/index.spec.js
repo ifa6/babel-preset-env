@@ -2,6 +2,7 @@
 
 const babelPresetEnv = require("../lib/index.js");
 const assert = require("assert");
+const mapValues = require("lodash/mapValues");
 const { versions: electronToChromiumData } = require("electron-to-chromium");
 
 describe("babel-preset-env", () => {
@@ -12,16 +13,7 @@ describe("babel-preset-env", () => {
           node: true,
         }),
         {
-          node: parseFloat(process.versions.node),
-        },
-      );
-
-      assert.deepEqual(
-        babelPresetEnv.getTargets({
-          node: "current",
-        }),
-        {
-          node: parseFloat(process.versions.node),
+          node: process.versions.node,
         },
       );
     });
@@ -135,9 +127,36 @@ describe("babel-preset-env", () => {
   });
 
   describe("isPluginRequired", () => {
+    const testTargetTypes = (
+      plugin,
+      targets,
+      expectedNumeric,
+      expectedString,
+    ) => {
+      const numericTargets = mapValues(targets, (t, name) => {
+        return name === "browsers" ? t : parseFloat(t);
+      });
+
+      assert.strictEqual(
+        babelPresetEnv.isPluginRequired(numericTargets, plugin),
+        expectedNumeric,
+        "numeric version test failed",
+      );
+
+      const stringTargets = mapValues(targets, t => t.toString());
+      const stringExpected = typeof expectedString === "undefined"
+        ? expectedNumeric
+        : expectedString;
+
+      assert.strictEqual(
+        babelPresetEnv.isPluginRequired(stringTargets, plugin),
+        stringExpected,
+        "string version test failed",
+      );
+    };
+
     it("returns true if no targets are specified", () => {
-      const isRequired = babelPresetEnv.isPluginRequired({}, {});
-      assert(isRequired);
+      testTargetTypes({}, {}, true);
     });
 
     it("returns true if plugin feature is not implemented in one or more targets", () => {
@@ -167,7 +186,7 @@ describe("babel-preset-env", () => {
       const targets = {
         chrome: Number.MAX_SAFE_INTEGER,
       };
-      assert(babelPresetEnv.isPluginRequired(targets, plugin) === false);
+      testTargetTypes(plugin, targets, false);
     });
 
     it("returns false if plugin feature is implemented is equal to target", () => {
@@ -177,7 +196,7 @@ describe("babel-preset-env", () => {
       const targets = {
         chrome: 49,
       };
-      assert(babelPresetEnv.isPluginRequired(targets, plugin) === false);
+      testTargetTypes(plugin, targets, false);
     });
 
     it("returns true if plugin feature is implemented is greater than target", () => {
@@ -187,7 +206,7 @@ describe("babel-preset-env", () => {
       const targets = {
         chrome: 49,
       };
-      assert(babelPresetEnv.isPluginRequired(targets, plugin) === true);
+      testTargetTypes(plugin, targets, true);
     });
 
     it("returns false if plugin feature is implemented by lower than target defined in browsers query", () => {
@@ -197,7 +216,7 @@ describe("babel-preset-env", () => {
       const targets = {
         browsers: "chrome > 50",
       };
-      assert(babelPresetEnv.isPluginRequired(targets, plugin) === false);
+      testTargetTypes(plugin, targets, false);
     });
 
     it("returns true if plugin feature is implemented is greater than target defined in browsers query", () => {
@@ -207,7 +226,7 @@ describe("babel-preset-env", () => {
       const targets = {
         browsers: "chrome > 50",
       };
-      assert(babelPresetEnv.isPluginRequired(targets, plugin) === true);
+      testTargetTypes(plugin, targets, true);
     });
 
     it("returns true if target's root items overrides versions defined in browsers query", () => {
@@ -218,8 +237,7 @@ describe("babel-preset-env", () => {
         browsers: "last 2 Chrome versions",
         chrome: 44,
       };
-
-      assert(babelPresetEnv.isPluginRequired(targets, plugin) === true);
+      testTargetTypes(plugin, targets, true);
     });
 
     it("returns true if uglify is specified as a target", () => {
@@ -230,42 +248,17 @@ describe("babel-preset-env", () => {
         chrome: 55,
         uglify: true,
       };
-
-      assert(babelPresetEnv.isPluginRequired(targets, plugin) === true);
+      testTargetTypes(plugin, targets, true);
     });
 
-    it("doesn't throw when specifying a decimal for node", () => {
+    it("returns when target is a decimal", () => {
       const plugin = {
-        node: 6,
+        node: 6.9,
       };
-
       const targets = {
-        node: 6.5,
+        node: "6.10",
       };
-
-      assert.doesNotThrow(
-        () => {
-          babelPresetEnv.isPluginRequired(targets, plugin);
-        },
-        Error,
-      );
-    });
-
-    it("will throw if target version is not a number", () => {
-      const plugin = {
-        node: 6,
-      };
-
-      const targets = {
-        node: "6.5",
-      };
-
-      assert.throws(
-        () => {
-          babelPresetEnv.isPluginRequired(targets, plugin);
-        },
-        Error,
-      );
+      testTargetTypes(plugin, targets, true, false);
     });
   });
 
